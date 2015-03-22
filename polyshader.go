@@ -12,9 +12,13 @@ type PolyShader struct {
 
 	uniProj int32
 
-	points []float32
-	vbSize int
+	pointGroups  map[PolyGroup][]float32
+	buffer       []float32
+	bufferOffset map[PolyGroup]int
+	vbSize       int
 }
+
+type PolyGroup int
 
 const polyVertexSrc string = `
 #version 150 core
@@ -67,34 +71,68 @@ func (s *PolyShader) Init(proj *mgl.Mat4) {
 	gl.EnableVertexAttribArray(colorAttr)
 	gl.VertexAttribPointer(colorAttr, 3, gl.FLOAT, false, stripe,
 		gl.PtrOffset(2*4))
+
+	s.pointGroups = make(map[PolyGroup][]float32)
+	s.bufferOffset = make(map[PolyGroup]int)
 }
 
 func (s *PolyShader) Clear() {
-	s.points = s.points[:0]
+	for group, points := range s.pointGroups {
+		s.pointGroups[group] = points[:0]
+	}
+	s.buffer = s.buffer[:0]
 }
 
-func (s *PolyShader) Render() {
-	if len(s.points) == 0 {
-		return
-	}
-
+func (s *PolyShader) Render(groups ...PolyGroup) {
 	gl.BindVertexArray(s.vao)
 	gl.UseProgram(s.program)
 	gl.BindBuffer(gl.ARRAY_BUFFER, s.vbo)
 
-	if len(s.points) > s.vbSize {
-		s.vbSize = len(s.points) * 2
-		gl.BufferData(gl.ARRAY_BUFFER, s.vbSize*4, nil, gl.STREAM_DRAW)
+	s.sendPoints()
+	if len(groups) == 0 {
+		s.draw(0, len(s.buffer))
 	}
-	gl.BufferSubData(gl.ARRAY_BUFFER, 0, len(s.points)*4, gl.Ptr(s.points))
-
-	gl.DrawArrays(gl.TRIANGLES, 0, int32(len(s.points)/5))
+	for _, group := range groups {
+		s.draw(s.bufferOffset[group], len(s.pointGroups[group]))
+	}
 }
 
-func (s *PolyShader) AddPoints(points []mgl.Vec2, color mgl.Vec3) {
+func (s *PolyShader) AddPoints(points []mgl.Vec2, color mgl.Vec3, group PolyGroup) {
 	r, g, b := color.Elem()
 
 	for _, p := range points {
-		s.points = append(s.points, p.X(), p.Y(), r, g, b)
+		s.pointGroups[group] = append(s.pointGroups[group],
+			p.X(), p.Y(), r, g, b)
+	}
+}
+
+func (s *PolyShader) sendPoints() {
+	if len(s.buffer) > 0 {
+		return // already sended
+	}
+
+	offset := 0
+	for group, points := range s.pointGroups {
+		s.buffer = append(s.buffer, points...)
+		s.bufferOffset[group] = offset
+		offset += len(points)
+	}
+
+	if len(s.buffer) > s.vbSize {
+		s.vbSize = len(s.buffer) * 2
+		gl.BufferData(gl.ARRAY_BUFFER, s.vbSize*4, nil, gl.STREAM_DRAW)
+	}
+
+	if len(s.buffer) > 0 {
+		gl.BufferSubData(gl.ARRAY_BUFFER, 0, len(s.buffer)*4,
+			gl.Ptr(s.buffer))
+	}
+}
+
+func (s *PolyShader) draw(offset, count int) {
+	if count > 0 {
+		const recSize = 5
+		gl.DrawArrays(gl.TRIANGLES, int32(offset/recSize),
+			int32(count/recSize))
 	}
 }

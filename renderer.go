@@ -14,6 +14,11 @@ type Renderer struct {
 	neonShader NeonShader
 }
 
+const (
+	DefaultGroup PolyGroup = iota
+	NeonGroup
+)
+
 func NewRenderer(width, height, screenWidth, screenHeight float32) *Renderer {
 	r := &Renderer{
 		size:   mgl.Vec2{width, height},
@@ -43,16 +48,25 @@ func (r *Renderer) Render() {
 	r.polyShader.Render()
 
 	r.neonShader.BindFramebuffer()
-	r.polyShader.Render()
+	r.polyShader.Render(NeonGroup)
 	r.neonShader.Render()
 }
 
+func (r *Renderer) Draw(points []mgl.Vec2, color mgl.Vec3) {
+	r.polyShader.AddPoints(points, color, DefaultGroup)
+}
+
+func (r *Renderer) DrawNeon(points []mgl.Vec2, color mgl.Vec3) {
+	r.polyShader.AddPoints(points, color, NeonGroup)
+}
+
 func (r *Renderer) DrawPoly(pos, size mgl.Vec2, sides int, color mgl.Vec3) {
+
 	radius := size.Mul(0.5)
 	points := mgl.Circle(radius.X(), radius.Y(), sides)
 	for i := 0; i < len(points); i++ {
 		points[i] = points[i].Add(pos)
 	}
 
-	r.polyShader.AddPoints(points, color)
+	r.polyShader.AddPoints(points, color, NeonGroup)
 }

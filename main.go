@@ -2,16 +2,18 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/go-gl/glfw/v3.0/glfw"
 )
 
 func init() {
-	// GLFW event handling must run on the main OS thread
-	runtime.LockOSThread()
+	runtime.LockOSThread() // GLFW event handling must run on the main OS thread
+	rand.Seed(time.Now().UnixNano())
 }
 
 func main() {
@@ -31,31 +33,24 @@ func main() {
 
 	input := NewInput(window)
 	renderer := NewRenderer(width, height, width, height)
-	ship := NewShip()
-	missiles := []*Missile{}
+	ship := NewShip(Human, 100, height/2)
+	ship2 := NewShip(Others, 1000, height/2+30)
+	ship2.dir[0] = -1
+
+	world := NewWorld(width, height)
+	world.AddShips(ship, ship2)
 
 	timer := NewTimer(window)
 	for !window.ShouldClose() {
 		timer.Tick()
+		renderer.Clear()
 
 		input.Process()
 		timer.ShowTimings(input.debug, 60)
+		ship.Control(input.dir, input.fire)
 
-		ship.Thrust(input.dir, input.fire)
-		newMissiles := ship.Update(timer.DT)
-		if len(newMissiles) > 0 {
-			missiles = append(missiles, newMissiles...)
-		}
-
-		for _, m := range missiles {
-			m.Update(timer.DT)
-		}
-
-		renderer.Clear()
-		ship.Draw(renderer)
-		for _, m := range missiles {
-			m.Draw(renderer)
-		}
+		world.Update(timer.DT)
+		world.Draw(renderer)
 		renderer.Render()
 
 		window.SwapBuffers()
