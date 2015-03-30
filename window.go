@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/go-gl/glfw/v3.0/glfw"
+	mgl "github.com/go-gl/mathgl/mgl32"
 )
 
 func InitGLFW() {
@@ -40,4 +41,18 @@ func NewWindow(width int, height int, title string) *glfw.Window {
 	window.MakeContextCurrent()
 
 	return window
+}
+
+func NewFullScreenWindow(title string) (*glfw.Window, mgl.Vec2) {
+	monitor, err := glfw.GetPrimaryMonitor()
+	PanicOnError(err)
+
+	mode, err := monitor.GetVideoMode()
+	PanicOnError(err)
+
+	window, err := glfw.CreateWindow(mode.Width, mode.Height, title, monitor, nil)
+	PanicOnError(err)
+	window.MakeContextCurrent()
+
+	return window, mgl.Vec2{float32(mode.Width), float32(mode.Height)}
 }

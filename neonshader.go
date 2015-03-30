@@ -14,6 +14,7 @@ type NeonShader struct {
 	buffers [6]Framebuffer
 	screen  mgl.Vec2
 	result  Framebuffer
+	fade    bool
 
 	uniStep int32
 	uniBlur int32
@@ -67,15 +68,20 @@ void main() {
 }
 ` + "\x00"
 
-func (s *NeonShader) Init(screen mgl.Vec2) {
+func (s *NeonShader) Init(screen mgl.Vec2, screenRatio float32, fade bool) {
 	s.program = CreateShaderProgram(neonVertexSrc, neonFragSrc)
+	s.fade = fade
 	s.screen = screen
-	for i, size := 0, screen.Mul(0.5); i < len(s.buffers)/2; i++ {
+
+	for i, size := 0, screen.Mul(screenRatio); i < len(s.buffers)/2; i++ {
 		s.buffers[i*2].Init(size.X(), size.Y())
 		s.buffers[i*2+1].Init(size.X(), size.Y())
 		size = size.Mul(0.5)
 	}
-	s.result.Init(screen.X()/2, screen.Y()/2)
+
+	if fade {
+		s.result.Init(screen.X()*screenRatio, screen.Y()*screenRatio)
+	}
 
 	gl.UseProgram(s.program)
 	gl.GenVertexArrays(1, &s.vao)
@@ -161,22 +167,27 @@ func (s *NeonShader) Render() {
 		s.draw()
 	}
 
-	// fade
-	s.result.Bind()
-	gl.Uniform1i(s.uniFade, gl.TRUE)
-	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-	s.draw()
-	gl.Uniform1i(s.uniFade, gl.FALSE)
-	gl.BlendFunc(gl.ONE, gl.ONE)
-	s.buffers[0].BindTexture()
-	s.draw()
+	if s.fade {
+		s.result.Bind()
+		gl.Uniform1i(s.uniFade, gl.TRUE)
+		gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+		s.draw()
+		gl.Uniform1i(s.uniFade, gl.FALSE)
+		gl.BlendFunc(gl.ONE, gl.ONE)
+		s.buffers[0].BindTexture()
+		s.draw()
+
+		s.result.BindTexture()
+	} else {
+		gl.BlendFunc(gl.ONE, gl.ONE)
+		s.buffers[0].BindTexture()
+	}
 
 	// blend to screen
-	gl.BlendFunc(gl.ONE, gl.DST_ALPHA)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 	gl.Viewport(0, 0, int32(s.screen.X()), int32(s.screen.Y()))
-	s.result.BindTexture()
 	s.draw()
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 }
 
 func (s *NeonShader) draw() {

@@ -24,9 +24,9 @@ const polyVertexSrc string = `
 #version 150 core
 
 in vec2 pos;
-in vec3 color;
+in vec4 color;
 
-out vec3 vColor;
+out vec4 vColor;
 
 uniform mat4 proj;
 
@@ -40,12 +40,12 @@ void main()
 const polyFragSrc string = `
 #version 150 core
 
-in vec3 vColor;
+in vec4 vColor;
 
 out vec4 outColor;
 
 void main() {
-    outColor = vec4(vColor, 1);
+    outColor = vColor;
 }
 ` + "\x00"
 
@@ -61,7 +61,7 @@ func (s *PolyShader) Init(proj *mgl.Mat4) {
 
 	gl.GenBuffers(1, &s.vbo)
 	gl.BindBuffer(gl.ARRAY_BUFFER, s.vbo)
-	const stripe = 5 * 4
+	const stripe = 6 * 4
 
 	posAttr := uint32(gl.GetAttribLocation(s.program, gl.Str("pos\x00")))
 	gl.EnableVertexAttribArray(posAttr)
@@ -69,7 +69,7 @@ func (s *PolyShader) Init(proj *mgl.Mat4) {
 
 	colorAttr := uint32(gl.GetAttribLocation(s.program, gl.Str("color\x00")))
 	gl.EnableVertexAttribArray(colorAttr)
-	gl.VertexAttribPointer(colorAttr, 3, gl.FLOAT, false, stripe,
+	gl.VertexAttribPointer(colorAttr, 4, gl.FLOAT, false, stripe,
 		gl.PtrOffset(2*4))
 
 	s.pointGroups = make(map[PolyGroup][]float32)
@@ -97,12 +97,12 @@ func (s *PolyShader) Render(groups ...PolyGroup) {
 	}
 }
 
-func (s *PolyShader) AddPoints(points []mgl.Vec2, color mgl.Vec3, group PolyGroup) {
-	r, g, b := color.Elem()
+func (s *PolyShader) AddPoints(points []mgl.Vec2, color mgl.Vec4, group PolyGroup) {
+	r, g, b, a := color.Elem()
 
 	for _, p := range points {
 		s.pointGroups[group] = append(s.pointGroups[group],
-			p.X(), p.Y(), r, g, b)
+			p.X(), p.Y(), r, g, b, a)
 	}
 }
 
@@ -131,7 +131,7 @@ func (s *PolyShader) sendPoints() {
 
 func (s *PolyShader) draw(offset, count int) {
 	if count > 0 {
-		const recSize = 5
+		const recSize = 6
 		gl.DrawArrays(gl.TRIANGLES, int32(offset/recSize),
 			int32(count/recSize))
 	}

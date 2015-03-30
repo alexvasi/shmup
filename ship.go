@@ -2,102 +2,158 @@ package main
 
 import (
 	"math"
+	"math/rand"
 
 	mgl "github.com/go-gl/mathgl/mgl32"
 )
 
-const ShipMaxSpeed = 600
-const ShipFireRate = 10
-
 type Ship struct {
-	Race     Race
-	IsDead   bool
-	pos      mgl.Vec2
-	dir      mgl.Vec2
+	Race   Race
+	IsDead bool
+	Pos    mgl.Vec2
+	Dir    mgl.Vec2
+
 	velocity mgl.Vec2
-	model    ShipModel
+	model    *ShipModel
 	hp       int
 	damaged  bool
+	trs      mgl.Mat3
 
 	fire     bool
-	cooldown float32
+	cooldown []float32
+	engineCD []float32
 }
 
-func NewShip(race Race, posX, posY float32) *Ship {
+func NewShip(race Race, model *ShipModel) *Ship {
 	s := &Ship{
-		Race:  race,
-		pos:   mgl.Vec2{posX, posY},
-		dir:   mgl.Vec2{1, 0},
-		model: PlayerModel,
-		hp:    10,
+		Race:     race,
+		model:    model,
+		Dir:      mgl.Vec2{1, 0},
+		hp:       model.Hp,
+		cooldown: make([]float32, len(model.Guns)),
+		engineCD: make([]float32, len(model.Engines)),
 	}
+
+	if race != Human {
+		s.Dir[0] *= -1
+	}
+
 	return s
 }
 
 func (s *Ship) Control(thrust mgl.Vec2, fire bool) {
 	s.fire = fire
 
-	s.velocity = thrust.Mul(ShipMaxSpeed)
+	s.velocity = thrust.Mul(s.model.Speed)
 	speed := s.velocity.Len()
-	if speed > ShipMaxSpeed {
-		s.velocity = s.velocity.Mul(ShipMaxSpeed / speed)
+	if speed > s.model.Speed {
+		s.velocity = s.velocity.Mul(s.model.Speed / speed)
 	}
 }
 
-func (s *Ship) Update(dt float32, world *World) {
+func (s *Ship) Update(dt float32, world *World, ships []*Ship) {
+	for _, other := range ships {
+		if s.Race != other.Race && s.collides(other) {
+			other.Hit()
+			s.Hit()
+		}
+	}
+
 	if s.hp <= 0 {
 		s.IsDead = true
 		s.makeExplosion(world)
 		return
 	}
 
-	s.pos = s.pos.Add(s.velocity.Mul(dt))
+	s.Pos = s.Pos.Add(s.velocity.Mul(dt))
+	s.StayInWorld(world)
+	s.trs = s.calcTRS(1)
+	s.updateGuns(dt, world)
+	s.updateEngines(dt, world)
+}
 
-	s.cooldown -= dt
-	if s.cooldown < 0 && s.fire {
-		s.cooldown += 1. / ShipFireRate
-		missile := NewMissile(s.Race, s.transform(s.model.gun)[0], 1000, 5)
-		world.AddMissiles(missile)
-	} else if s.cooldown < 0 {
-		s.cooldown = 0
+func (s *Ship) updateGuns(dt float32, world *World) {
+	for i, gun := range s.model.Guns {
+		s.cooldown[i] -= dt
+		for ; s.fire && s.cooldown[i] < 0; s.cooldown[i] += 1 / gun.Rate {
+			pos := s.transformPoint(gun.Pos)
+			v := s.Dir.Mul(gun.Speed)
+			m := NewMissile(s.Race, pos, v, gun.Size, gun.Color)
+			world.AddMissiles(m)
+			if len(gun.Sound) > 0 {
+				PlaySound(gun.Sound, gun.SoundGain, gun.SoundPitch)
+			}
+		}
+		if !s.fire && s.cooldown[i] < 0 {
+			s.cooldown[i] = 0
+		}
+	}
+}
+
+func (s *Ship) updateEngines(dt float32, world *World) {
+	const speed = 100
+	const MaxSideVelocity = 90
+
+	for i, engine := range s.model.Engines {
+		s.engineCD[i] -= dt
+
+		proj := s.velocity.Dot(s.Dir)
+		rej := s.velocity.Sub(s.Dir.Mul(proj))
+		active := engine.MinVelocity <= proj && MaxSideVelocity > rej.Len()
+
+		for ; active && s.engineCD[i] < 0; s.engineCD[i] += 1 / engine.Rate {
+			shift := rand.Float32() - 0.5
+			pos := s.transformPoint(engine.Pos)
+			posDir := mgl.Vec2{-s.Dir.Y(), s.Dir.X()}
+			pos = pos.Add(posDir.Mul(shift * engine.Size / 2))
+
+			particle := NewParticle(
+				pos,
+				engine.ParticleSize[1],
+				engine.ParticleSize[0],
+				float32(engine.TTL)+engine.TTL*rand.Float32(),
+				engine.Color,
+			)
+			particle.Velocity = s.Dir.Mul(-speed)
+			particle.RenderGroup = EngineGroup
+			world.AddObjects(particle)
+		}
+		if !active && s.engineCD[i] < 0 {
+			s.engineCD[i] = 0
+		}
 	}
 }
 
 func (s *Ship) Draw(renderer *Renderer) {
-	color := s.model.color
 	if s.damaged {
 		s.damaged = false
-		color = mgl.Vec3{1, 1, 1}
+		renderer.Draw(s.transform(s.model.Hull), WhiteColor, PlainGroup)
+	} else {
+		renderer.Draw(s.transform(s.model.Hull), s.model.Color1, PlainGroup)
+		renderer.Draw(s.transformScale(s.model.Hull, 0.5), s.model.Color2, PlainGroup)
 	}
-
-	points := s.transform(s.model.hull...)
-	renderer.Draw(points, color)
-	x1, y1, x2, y2 := s.AABB().Elem()
-
-	renderer.DrawPoly(mgl.Vec2{x1, y1}, mgl.Vec2{3, 3}, 3, mgl.Vec3{1})
-	renderer.DrawPoly(mgl.Vec2{x2, y2}, mgl.Vec2{3, 3}, 3, mgl.Vec3{1})
-	renderer.DrawPoly(mgl.Vec2{x1, y2}, mgl.Vec2{3, 3}, 3, mgl.Vec3{1})
-	renderer.DrawPoly(mgl.Vec2{x2, y1}, mgl.Vec2{3, 3}, 3, mgl.Vec3{1})
 }
 
 func (s *Ship) Hit() {
-	s.hp -= 1
-	s.damaged = true
+	if s.Race != Autopilot {
+		s.hp -= 1
+		s.damaged = true
+	}
 }
 
 func (s *Ship) AABB() mgl.Vec4 {
-	halfSize := Max(s.model.size.X(), s.model.size.Y()) / 2
+	halfSize := Max(s.model.Size.X(), s.model.Size.Y()) / 2
 	aabb := mgl.Vec4{
-		s.pos.X() - halfSize,
-		s.pos.Y() - halfSize,
-		s.pos.X() + halfSize,
-		s.pos.Y() + halfSize,
+		s.Pos.X() - halfSize,
+		s.Pos.Y() - halfSize,
+		s.Pos.X() + halfSize,
+		s.Pos.Y() + halfSize,
 	}
 	return aabb
 }
 
 func (s *Ship) Sides() [][2]mgl.Vec2 {
-	points := s.transform(s.model.hull...)
+	points := s.transform(s.model.Hull)
 
 	sides := make([][2]mgl.Vec2, 0, len(points))
 	for i := 0; i < len(points)/3; i++ {
@@ -114,12 +170,54 @@ func (s *Ship) Sides() [][2]mgl.Vec2 {
 	return sides
 }
 
-func (s *Ship) transform(points ...mgl.Vec2) []mgl.Vec2 {
-	dirAngle := -float32(math.Atan2(float64(s.dir.X()), float64(s.dir.Y())))
+func (s *Ship) StayInWorld(world *World) {
+	width, height := world.Size.Elem()
+	minX, minY, maxX, maxY := s.AABB().Elem()
 
-	mat := mgl.Scale2D(s.model.size.X()/2, s.model.size.Y()/2)
+	if s.Race == Human {
+		s.Pos[0] -= Min(minX, 0)
+		s.Pos[1] -= Min(minY, 0)
+		s.Pos[0] += Min(width-maxX, 0)
+		s.Pos[1] += Min(height-maxY, 0)
+	} else if s.Race == Others && maxX < 0 {
+		s.IsDead = true // silently go away to another world
+	}
+}
+
+func (s *Ship) Health() float32 {
+	return float32(s.hp) / float32(s.model.Hp)
+}
+
+func (s *Ship) Revive() {
+	s.hp = s.model.Hp
+	s.IsDead = false
+	s.damaged = false
+}
+
+func (s *Ship) calcTRS(scale float32) mgl.Mat3 {
+	dirAngle := -float32(math.Atan2(float64(s.Dir.X()), float64(s.Dir.Y())))
+
+	mat := mgl.Scale2D(scale*s.model.Size.X()/2, scale*s.model.Size.Y()/2)
 	mat = mgl.HomogRotate2D(dirAngle).Mul3(mat)
-	mat = mgl.Translate2D(s.pos.X(), s.pos.Y()).Mul3(mat)
+	mat = mgl.Translate2D(s.Pos.X(), s.Pos.Y()).Mul3(mat)
+
+	return mat
+}
+
+func (s *Ship) transform(points []mgl.Vec2) []mgl.Vec2 {
+	result := make([]mgl.Vec2, len(points))
+	for i, p := range points {
+		result[i] = s.trs.Mul3x1(mgl.Vec3{p.X(), p.Y(), 1}).Vec2()
+	}
+	return result
+}
+
+func (s *Ship) transformPoint(p mgl.Vec2) mgl.Vec2 {
+	return s.trs.Mul3x1(mgl.Vec3{p.X(), p.Y(), 1}).Vec2()
+}
+
+func (s *Ship) transformScale(points []mgl.Vec2, scale float32) []mgl.Vec2 {
+	mat := s.calcTRS(scale)
 
 	result := make([]mgl.Vec2, len(points))
 	for i, p := range points {
@@ -129,30 +227,59 @@ func (s *Ship) transform(points ...mgl.Vec2) []mgl.Vec2 {
 }
 
 func (s *Ship) makeExplosion(world *World) {
+	boomTTL := 0.5 * s.model.BlowupFactor
+	size := 15 * s.model.BlowupFactor
+	ttl := 2 * s.model.BlowupFactor
+	count := 35 * s.model.BlowupFactor
+	velocityMin := 50 * s.model.BlowupFactor
+	velocityMax := 200 * s.model.BlowupFactor
+
 	bigBoom := NewParticle(
-		s.pos,
-		Max(s.model.size.Elem()),
+		s.Pos,
+		Max(s.model.Size.Elem())*s.model.BlowupFactor,
 		0,
-		0.5,
-		mgl.Vec3{1, 1, 1},
-		mgl.Vec2{},
+		boomTTL,
+		WhiteColor,
 	)
 	world.AddObjects(bigBoom)
 
-	const count = 10
-	const velocity = 100
+	colors := []mgl.Vec4{s.model.Color1, s.model.Color2}
+	for i := 0; i < int(count); i++ {
+		angleMin := float64(i) * 2 * math.Pi / float64(count)
+		angleMax := float64(i+1) * 2 * math.Pi / float64(count)
+		angle := angleMin + (angleMax-angleMin)*rand.Float64()
+		sin, cos := math.Sincos(angle)
 
-	for i := 0; i < count; i++ {
-		sin, cos := math.Sincos(float64(i) * 2 * math.Pi / count)
-		v := mgl.Vec2{float32(sin) * velocity, float32(cos) * velocity}
+		v := velocityMin + (velocityMax-velocityMin)*rand.Float32()
 		p := NewParticle(
-			s.pos,
-			40,
+			s.Pos,
+			(size/2)*rand.Float32()+size/2,
 			0,
-			2,
-			s.model.color,
-			v,
+			(ttl/2)*rand.Float32()+ttl/2,
+			colors[rand.Intn(2)],
 		)
+		p.Velocity = mgl.Vec2{float32(sin) * v, float32(cos) * v}
 		world.AddObjects(p)
 	}
+
+	if s.Race == Human {
+		PlaySound("boom", 1, 0.3)
+	} else {
+		PlaySound("boom", 1, 1/s.model.BlowupFactor)
+	}
+}
+
+func (s *Ship) collides(other *Ship) bool {
+	if CheckAABB(s.AABB(), other.AABB()) {
+		for _, side := range s.Sides() {
+			for _, oSide := range other.Sides() {
+				ok, _ := SegmentIntersection(side[0], side[1],
+					oSide[0], oSide[1])
+				if ok {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

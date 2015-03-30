@@ -28,17 +28,23 @@ func main() {
 	InitGLFW()
 	defer glfw.Terminate()
 
-	window := NewWindow(width, height, title)
+	window, screenSize := NewFullScreenWindow(title)
 	PanicOnError(gl.Init())
 
-	input := NewInput(window)
-	renderer := NewRenderer(width, height, width, height)
-	ship := NewShip(Human, 100, height/2)
-	ship2 := NewShip(Others, 1000, height/2+30)
-	ship2.dir[0] = -1
+	InitSound()
+	defer TerminateSound()
+	LoadSoundFile("shoot_human", "shoot_human.wav")
+	LoadSoundFile("shoot", "shoot.wav")
+	LoadSoundFile("shoot_big", "shoot_big.wav")
+	LoadSoundFile("boom", "boom.wav")
+	LoadSoundFile("papa", "papa.wav")
+	LoadSoundFile("intro", "intro.wav")
+	LoadSoundFile("blip", "blip.wav")
 
+	input := NewInput(window)
+	renderer := NewRenderer(width, height, screenSize)
 	world := NewWorld(width, height)
-	world.AddShips(ship, ship2)
+	game := NewGame(world, input)
 
 	timer := NewTimer(window)
 	for !window.ShouldClose() {
@@ -47,9 +53,8 @@ func main() {
 
 		input.Process()
 		timer.ShowTimings(input.debug, 60)
-		ship.Control(input.dir, input.fire)
 
-		world.Update(timer.DT)
+		game.Update(timer.DT)
 		world.Draw(renderer)
 		renderer.Render()
 

@@ -21,6 +21,7 @@ func NewInput(w *glfw.Window) *Input {
 		useJoy: glfw.JoystickPresent(glfw.Joystick1),
 	}
 	w.SetKeyCallback(i.GetKeyCallback())
+	w.SetInputMode(glfw.Cursor, glfw.CursorHidden)
 	return i
 }
 

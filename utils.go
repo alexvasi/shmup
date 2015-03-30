@@ -1,6 +1,9 @@
 package main
 
-import mgl "github.com/go-gl/mathgl/mgl32"
+import (
+	mgl "github.com/go-gl/mathgl/mgl32"
+	"github.com/lucasb-eyer/go-colorful"
+)
 
 func Max(a float32, numbers ...float32) float32 {
 	for _, n := range numbers {
@@ -32,6 +35,31 @@ func MinVec2(v1 mgl.Vec2, vectors ...mgl.Vec2) mgl.Vec2 {
 		v1 = mgl.Vec2{Min(v1.X(), vec.X()), Min(v1.Y(), vec.Y())}
 	}
 	return v1
+}
+
+func HexColor(hex string, alpha float32) mgl.Vec4 {
+	c, err := colorful.Hex(hex)
+	if err != nil {
+		panic(err)
+	}
+	return mgl.Vec4{float32(c.R), float32(c.G), float32(c.B), alpha}
+}
+
+func BlendColors(c1, c2 mgl.Vec4, t float32) mgl.Vec4 {
+	from := colorful.Color{
+		R: float64(c1[0]),
+		G: float64(c1[1]),
+		B: float64(c1[2]),
+	}
+	to := colorful.Color{
+		R: float64(c2[0]),
+		G: float64(c2[1]),
+		B: float64(c2[2]),
+	}
+	r := from.BlendLab(to, float64(t)).Clamped()
+	alpha := mgl.Clamp(c1[3]+(c2[3]-c1[3])*t, 0, 1)
+
+	return mgl.Vec4{float32(r.R), float32(r.G), float32(r.B), alpha}
 }
 
 func CheckAABB(a, b mgl.Vec4) bool {

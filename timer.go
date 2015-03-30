@@ -35,8 +35,9 @@ func (t *Timer) Tick() float32 {
 		t.ticksAvg += t.DT / float32(t.ticksTotal)
 		t.ticksCounter += 1
 		if t.ticksCounter == t.ticksTotal {
-			t.window.SetTitle(fmt.Sprintf("%.2f %.f",
-				t.ticksAvg*1000, 1/t.ticksAvg))
+			text := fmt.Sprintf("%.2f %.f", t.ticksAvg*1000, 1/t.ticksAvg)
+			fmt.Println(text)
+			t.window.SetTitle(text)
 			t.ticksAvg = 0
 			t.ticksCounter = 0
 		}

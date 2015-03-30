@@ -12,17 +12,23 @@ type Renderer struct {
 
 	polyShader PolyShader
 	neonShader NeonShader
+	starShader NeonShader
 }
 
 const (
-	DefaultGroup PolyGroup = iota
+	PlainGroup PolyGroup = iota
 	NeonGroup
+	StarGroup
+	EngineGroup
 )
 
-func NewRenderer(width, height, screenWidth, screenHeight float32) *Renderer {
+var WhiteColor = mgl.Vec4{1, 1, 1, 1}
+var BlackColor = mgl.Vec4{0, 0, 0, 1}
+
+func NewRenderer(width, height float32, screenSize mgl.Vec2) *Renderer {
 	r := &Renderer{
 		size:   mgl.Vec2{width, height},
-		screen: mgl.Vec2{screenWidth, screenHeight},
+		screen: screenSize,
 		ortho:  mgl.Ortho2D(0, width, 0, height),
 	}
 
@@ -30,7 +36,8 @@ func NewRenderer(width, height, screenWidth, screenHeight float32) *Renderer {
 	gl.Enable(gl.BLEND)
 
 	r.polyShader.Init(&r.ortho)
-	r.neonShader.Init(r.screen)
+	r.neonShader.Init(r.screen, 0.5, true)
+	r.starShader.Init(r.screen, 1, false)
 
 	return r
 }
@@ -42,25 +49,28 @@ func (r *Renderer) Clear() {
 
 	r.polyShader.Clear()
 	r.neonShader.Clear()
+	r.starShader.Clear()
 }
 
 func (r *Renderer) Render() {
-	r.polyShader.Render()
+	r.starShader.BindFramebuffer()
+	r.polyShader.Render(StarGroup, EngineGroup)
+	r.starShader.Render()
+	r.polyShader.Render(StarGroup, EngineGroup)
+
+	r.polyShader.Render(PlainGroup, NeonGroup)
 
 	r.neonShader.BindFramebuffer()
 	r.polyShader.Render(NeonGroup)
 	r.neonShader.Render()
 }
 
-func (r *Renderer) Draw(points []mgl.Vec2, color mgl.Vec3) {
-	r.polyShader.AddPoints(points, color, DefaultGroup)
+func (r *Renderer) Draw(points []mgl.Vec2, color mgl.Vec4, group PolyGroup) {
+	r.polyShader.AddPoints(points, color, group)
 }
 
-func (r *Renderer) DrawNeon(points []mgl.Vec2, color mgl.Vec3) {
-	r.polyShader.AddPoints(points, color, NeonGroup)
-}
-
-func (r *Renderer) DrawPoly(pos, size mgl.Vec2, sides int, color mgl.Vec3) {
+func (r *Renderer) DrawPoly(pos, size mgl.Vec2, sides int, color mgl.Vec4,
+	group PolyGroup) {
 
 	radius := size.Mul(0.5)
 	points := mgl.Circle(radius.X(), radius.Y(), sides)
@@ -68,5 +78,5 @@ func (r *Renderer) DrawPoly(pos, size mgl.Vec2, sides int, color mgl.Vec3) {
 		points[i] = points[i].Add(pos)
 	}
 
-	r.polyShader.AddPoints(points, color, NeonGroup)
+	r.polyShader.AddPoints(points, color, group)
 }
