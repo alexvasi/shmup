@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/go-gl/glfw/v3.0/glfw"
+	"github.com/go-gl/glfw/v3.1/glfw"
 	mgl "github.com/go-gl/mathgl/mgl32"
 )
 
@@ -13,15 +13,13 @@ type Input struct {
 	fire   bool
 }
 
-type KeyCallback func(*glfw.Window, glfw.Key, int, glfw.Action, glfw.ModifierKey)
-
 func NewInput(w *glfw.Window) *Input {
 	i := &Input{
 		window: w,
 		useJoy: glfw.JoystickPresent(glfw.Joystick1),
 	}
 	w.SetKeyCallback(i.GetKeyCallback())
-	w.SetInputMode(glfw.Cursor, glfw.CursorHidden)
+	w.SetInputMode(glfw.CursorMode, glfw.CursorHidden)
 	return i
 }
 
@@ -35,14 +33,14 @@ func (i *Input) Process() {
 	i.dir = mgl.Vec2{0, 0}
 	i.fire = false
 
-	axes, err := glfw.GetJoystickAxes(glfw.Joystick1)
-	if err == nil && len(axes) > 1 {
+	axes := glfw.GetJoystickAxes(glfw.Joystick1)
+	if len(axes) > 1 {
 		i.dir[0] = axes[0]
 		i.dir[1] = -1 * axes[1]
 	}
 
-	buttons, err := glfw.GetJoystickButtons(glfw.Joystick1)
-	if err == nil && len(buttons) > 14 {
+	buttons := glfw.GetJoystickButtons(glfw.Joystick1)
+	if len(buttons) > 14 {
 		if buttons[11] > 0 || buttons[14] > 0 {
 			i.fire = true
 		}
@@ -74,7 +72,7 @@ func (i *Input) IsPressed(keys ...glfw.Key) bool {
 	return false
 }
 
-func (i *Input) GetKeyCallback() KeyCallback {
+func (i *Input) GetKeyCallback() glfw.KeyCallback {
 	cb := func(w *glfw.Window, key glfw.Key, scan int, action glfw.Action,
 		m glfw.ModifierKey) {
 		if key == glfw.KeyGraveAccent && action == glfw.Press {

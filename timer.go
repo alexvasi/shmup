@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/go-gl/glfw/v3.0/glfw"
+	"github.com/go-gl/glfw/v3.1/glfw"
 )
 
 type Timer struct {

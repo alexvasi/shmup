@@ -1,42 +1,36 @@
 package main
 
 import (
-	"fmt"
-
-	"github.com/go-gl/glfw/v3.0/glfw"
+	"github.com/go-gl/glfw/v3.1/glfw"
 	mgl "github.com/go-gl/mathgl/mgl32"
 )
 
-func InitGLFW() {
-	if !glfw.Init() {
-		panic("Failed to initialize GLFW")
+func InitGLFW() error {
+	err := glfw.Init()
+	if err != nil {
+		return err
 	}
-
-	glfw.SetErrorCallback(func(code glfw.ErrorCode, desc string) {
-		panic(fmt.Sprint("GLFW error", code, desc))
-	})
 
 	glfw.WindowHint(glfw.ContextVersionMajor, 3)
 	glfw.WindowHint(glfw.ContextVersionMinor, 2)
-	glfw.WindowHint(glfw.OpenglProfile, glfw.OpenglCoreProfile)
-	glfw.WindowHint(glfw.OpenglForwardCompatible, glfw.True)
+	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
+	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
 	glfw.WindowHint(glfw.Resizable, glfw.False)
 	glfw.WindowHint(glfw.Samples, 4)
+
+	return nil
 }
 
 func NewWindow(width int, height int, title string) *glfw.Window {
 	glfw.WindowHint(glfw.Visible, glfw.False)
 
-	monitor, err := glfw.GetPrimaryMonitor()
-	PanicOnError(err)
-
-	mode, err := monitor.GetVideoMode()
-	PanicOnError(err)
+	monitor := glfw.GetPrimaryMonitor()
+	mode := monitor.GetVideoMode()
 
 	window, err := glfw.CreateWindow(width, height, title, nil, nil)
 	PanicOnError(err)
 
-	window.SetPosition((mode.Width-width)/2, (mode.Height-height)/2)
+	window.SetPos((mode.Width-width)/2, (mode.Height-height)/2)
 	window.Show()
 	window.MakeContextCurrent()
 
@@ -44,11 +38,8 @@ func NewWindow(width int, height int, title string) *glfw.Window {
 }
 
 func NewFullScreenWindow(title string) (*glfw.Window, mgl.Vec2) {
-	monitor, err := glfw.GetPrimaryMonitor()
-	PanicOnError(err)
-
-	mode, err := monitor.GetVideoMode()
-	PanicOnError(err)
+	monitor := glfw.GetPrimaryMonitor()
+	mode := monitor.GetVideoMode()
 
 	window, err := glfw.CreateWindow(mode.Width, mode.Height, title, monitor, nil)
 	PanicOnError(err)

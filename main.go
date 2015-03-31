@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-gl/gl/v3.2-core/gl"
-	"github.com/go-gl/glfw/v3.0/glfw"
+	"github.com/go-gl/glfw/v3.1/glfw"
 )
 
 func init() {
@@ -25,7 +25,7 @@ func main() {
 
 	defer HandlePanic()
 
-	InitGLFW()
+	PanicOnError(InitGLFW())
 	defer glfw.Terminate()
 
 	window, screenSize := NewFullScreenWindow(title)
