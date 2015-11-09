@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
@@ -23,42 +24,55 @@ func main() {
 		height = 768
 	)
 
+	fullscreen := flag.Bool("fs", false, "fullscreen mode")
+	flag.Parse()
+
 	defer HandlePanic()
 
 	PanicOnError(InitGLFW())
 	defer glfw.Terminate()
 
-	window, screenSize := NewFullScreenWindow(title)
+	window, screenSize := NewWindow(width, height, title, *fullscreen)
 	PanicOnError(gl.Init())
 
 	InitSound()
 	defer TerminateSound()
-	LoadSoundFile("shoot_human", "shoot_human.wav")
-	LoadSoundFile("shoot", "shoot.wav")
-	LoadSoundFile("shoot_big", "shoot_big.wav")
-	LoadSoundFile("boom", "boom.wav")
-	LoadSoundFile("papa", "papa.wav")
-	LoadSoundFile("intro", "intro.wav")
-	LoadSoundFile("blip", "blip.wav")
+	LoadSoundAssets("*.wav")
 
-	input := NewInput(window)
+	input := NewInput(window, *fullscreen)
 	renderer := NewRenderer(width, height, screenSize)
 	world := NewWorld(width, height)
 	game := NewGame(world, input)
+	timer := NewTimer()
 
-	timer := NewTimer(window)
 	for !window.ShouldClose() {
-		timer.Tick()
 		renderer.Clear()
-
-		input.Process()
-		timer.ShowTimings(input.debug, 60)
-
 		game.Update(timer.DT)
 		world.Draw(renderer)
 		renderer.Render()
 
 		window.SwapBuffers()
+
+		timer.Tick()
+		if timer.TicksCount == 60 {
+			window.SetTitle(timer.Stat())
+			timer.ResetCounter()
+		}
+
+		input.Process()
+		switch {
+		case input.DebugToggled && input.Debug:
+			glfw.SwapInterval(0)
+		case input.DebugToggled:
+			glfw.SwapInterval(1)
+		case input.FullscreenToggled:
+			//renderer.Cleanup()
+			window.Destroy()
+			window, screenSize = NewWindow(width, height, title,
+				input.Fullscreen)
+			input.SetWindow(window)
+			renderer = NewRenderer(width, height, screenSize)
+		}
 	}
 }
 

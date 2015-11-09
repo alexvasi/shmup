@@ -43,7 +43,7 @@ func NewGame(world *World, input *Input) *Game {
 
 func (game *Game) Update(dt float32) {
 	if game.ship.Race == Human {
-		game.ship.Control(game.input.dir, game.input.fire)
+		game.ship.Control(game.input.Dir, game.input.Fire)
 	}
 
 	if game.stage == nil {

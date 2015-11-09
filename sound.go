@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/Jragonmiris/go-al/al"
 	"github.com/Jragonmiris/go-al/alc"
@@ -61,6 +62,17 @@ func LoadSoundFile(label, path string) {
 
 	soundData.buffers[label] = buffer
 	PanicOnError(buffer.BufferData(sound))
+}
+
+func LoadSoundAssets(globPattern string) {
+	files, err := filepath.Glob(globPattern)
+	PanicOnError(err)
+
+	for _, path := range files {
+		_, name := filepath.Split(path)
+		ext := filepath.Ext(name)
+		LoadSoundFile(name[:len(name)-len(ext)], path)
+	}
 }
 
 func PlaySound(label string, gain, pitch float32) {

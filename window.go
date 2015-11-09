@@ -16,30 +16,42 @@ func InitGLFW() error {
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
 	glfw.WindowHint(glfw.Resizable, glfw.False)
+	glfw.WindowHint(glfw.RefreshRate, 60)
 	glfw.WindowHint(glfw.Samples, 4)
 
 	return nil
 }
 
-func NewWindow(width int, height int, title string) *glfw.Window {
-	glfw.WindowHint(glfw.Visible, glfw.False)
-
+func NewWindow(w int, h int, title string, fullscreen bool) (*glfw.Window, mgl.Vec2) {
 	monitor := glfw.GetPrimaryMonitor()
 	mode := monitor.GetVideoMode()
 
-	window, err := glfw.CreateWindow(width, height, title, nil, nil)
+	if fullscreen {
+		w, h = mode.Width, mode.Height
+	} else {
+		glfw.WindowHint(glfw.Visible, glfw.False)
+		monitor = nil
+	}
+
+	window, err := glfw.CreateWindow(w, h, title, monitor, nil)
 	PanicOnError(err)
 
-	window.SetPos((mode.Width-width)/2, (mode.Height-height)/2)
-	window.Show()
-	window.MakeContextCurrent()
+	if !fullscreen {
+		window.SetPos((mode.Width-w)/2, (mode.Height-h)/2)
+		window.Show()
+	}
 
-	return window
+	window.MakeContextCurrent()
+	return window, mgl.Vec2{float32(w), float32(h)}
 }
 
 func NewFullScreenWindow(title string) (*glfw.Window, mgl.Vec2) {
 	monitor := glfw.GetPrimaryMonitor()
 	mode := monitor.GetVideoMode()
+
+	glfw.WindowHint(glfw.RedBits, mode.RedBits)
+	glfw.WindowHint(glfw.GreenBits, mode.GreenBits)
+	glfw.WindowHint(glfw.BlueBits, mode.BlueBits)
 
 	window, err := glfw.CreateWindow(mode.Width, mode.Height, title, monitor, nil)
 	PanicOnError(err)
